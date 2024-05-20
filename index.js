@@ -7,6 +7,7 @@ const Xlsx = require("xlsx");
 const XlsxPopulateAccess = XlsxDataFill.XlsxPopulateAccess;
 const { read, utils } = Xlsx;
 
+// TODO получение данных из SQL и через alias намапим (прокачиваем мапинг)
 const tempData = {
   params: {
     groupName: "Дилер",
