@@ -1,9 +1,10 @@
-const execute = require("./models/AnyModel");
+const R = require("ramda");
 
-(async () => {
-  const [result] = await execute(
-    `select type, "DealerName" from public."Dealers" limit 2`
-  );
+const sequelize = require("./db/db.service");
+const { processData, prepareData } = require("./helpers");
 
-  console.log(result);
-})();
+sequelize
+  .query(`select id, type, "DealerName" from public."Dealers" limit 3`)
+  .then((result) => prepareData(R.head(result)))
+  .then((result2) => processData("./templates/ruamds1.xlsx", result2))
+  .then((result3) => result3.workbook().toFileAsync("./out/ruamds1_out.xlsx"));
