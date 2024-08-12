@@ -6,9 +6,29 @@ const sequelize = require("./db/db.service");
 
 const XlsxPopulateAccess = XlsxDataFill.XlsxPopulateAccess;
 
-const getData = (
-  sql = `select id, type, "DealerName" from public."Dealers1" limit 3`
-) => sequelize.query(sql);
+const bindParams = async () => {
+  const nameCondition = "like";
+  const nameValue = "Лада%";
+  const typeCondition = "=";
+  const typeValue = "Дилер";
+  const limit = 1;
+
+  return `
+  select 
+    id, type, "DealerName"
+  from 
+    public."Dealers"
+  where 
+    "DealerName" ${nameCondition} '${nameValue}' and
+    "type" ${typeCondition} '${typeValue}'
+    limit ${limit};
+  `;
+};
+
+const getData = (sql) =>
+  sequelize.query(sql, {
+    type: "SELECT",
+  });
 
 const processData = async (data, path) => {
   const wb = await XlsxPopulate.fromFileAsync(path);
@@ -20,35 +40,24 @@ const processData = async (data, path) => {
 };
 
 const prepareData = (data) => {
+  console.log(data);
+
   const filters = [
     {
-      name: "name1",
-      condition: "condition1",
+      condition: `${"like"} ${"Лада%"}`,
     },
     {
-      name: "name2",
       condition: "condition2",
     },
     {
-      name: "name3",
       condition: "condition3",
-    },
-    {
-      name: "name4",
-      condition: "condition4",
-    },
-    {
-      name: "",
-      condition: "",
     },
   ];
 
   return {
+    tableName: "Table name",
     filters,
-    vertical: R.head(data),
-    header1: "Заголовок 1",
-    header2: "Заголовок 2",
-    header3: "Заголовок 3",
+    vertical: data,
   };
 };
 
@@ -61,6 +70,7 @@ const wrileToFile = (res) =>
   res.workbook().toFileAsync("./out/ruamds1_out.xlsx");
 
 module.exports = {
+  bindParams,
   getData,
   processData,
   prepareData,
