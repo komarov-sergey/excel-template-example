@@ -1,14 +1,26 @@
 const XlsxPopulate = require("xlsx-populate");
 const XlsxDataFill = require("xlsx-datafill");
 const R = require("ramda");
+const moment = require("moment");
 
 const sequelize = require("./db/db.service");
 
 const XlsxPopulateAccess = XlsxDataFill.XlsxPopulateAccess;
 
-const getData = (
-  sql = `select id, type, "DealerName" from public."Dealers1" limit 3`
-) => sequelize.query(sql);
+const processSQL = (sql) => {
+  let i = 0;
+  return sql.replace(/\?/g, () => {
+    i++;
+    return `$${i}`;
+  });
+};
+
+const getData = async (sql, replacements) => {
+  return await sequelize.query(sql, {
+    replacements,
+    type: "SELECT",
+  });
+};
 
 const processData = async (data, path) => {
   const wb = await XlsxPopulate.fromFileAsync(path);
@@ -19,36 +31,23 @@ const processData = async (data, path) => {
   return xlsxAccess;
 };
 
-const prepareData = (data) => {
-  const filters = [
-    {
-      name: "name1",
-      condition: "condition1",
-    },
-    {
-      name: "name2",
-      condition: "condition2",
-    },
-    {
-      name: "name3",
-      condition: "condition3",
-    },
-    {
-      name: "name4",
-      condition: "condition4",
-    },
-    {
-      name: "",
-      condition: "",
-    },
-  ];
+const prepareData = (data, query) => {
+  const time = moment();
+  console.log("prepareData -->", data);
+  console.log("prepareData -->", query);
+
+  const search = query.rules.map((el) => ({
+    condition: `${el.field} ${el.operator} ${el.value}`,
+  }));
+
+  console.log("prepareData -->", search);
+  console.log("prepareData -->", time);
 
   return {
-    filters,
-    vertical: R.head(data),
-    header1: "Заголовок 1",
-    header2: "Заголовок 2",
-    header3: "Заголовок 3",
+    search,
+    date: time.format("YYYY-MM-DD"),
+    time: time.format("HH:MM:SS"),
+    table: data,
   };
 };
 
@@ -61,6 +60,7 @@ const wrileToFile = (res) =>
   res.workbook().toFileAsync("./out/ruamds1_out.xlsx");
 
 module.exports = {
+  processSQL,
   getData,
   processData,
   prepareData,
