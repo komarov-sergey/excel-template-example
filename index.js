@@ -1,70 +1,63 @@
-const { bindParams, getData, fillTemplate, wrileToFile } = require("./helpers");
+const fs = require("node:fs");
+const express = require("express");
+const bodyParser = require("body-parser");
+const { formatQuery } = require("react-querybuilder");
+const cors = require("cors");
 
-// case 1
-bindParams()
-  .then(getData)
-  .then(fillTemplate)
-  .then(wrileToFile)
-  .catch((e) => console.log(e));
+const { prepareData, processData } = require("./helpers");
+const sequelize = require("./db/db.service");
 
-// case 2
-// const myHeaders = new Headers();
-// myHeaders.append("Content-Type", "application/json");
+const app = express();
+const PORT = 3005;
 
-// const raw = JSON.stringify({
-//   tableName: "Table name",
-//   filters: [
-//     {
-//       label: "label1",
-//       condition: "condition1",
-//     },
-//     {
-//       label: "label2",
-//       condition: "condition2",
-//     },
-//     {
-//       label: "label3",
-//       condition: "condition3",
-//     },
-//     {
-//       label: "label4",
-//       condition: "condition4",
-//     },
-//     {
-//       label: "label5",
-//       condition: "condition5",
-//     },
-//   ],
-//   vertical: [
-//     {
-//       id: "1230451",
-//       type: "Дилер",
-//       DealerName: "Канск-Лада",
-//     },
-//     {
-//       id: "708120633",
-//       type: "Дилер",
-//       DealerName: "ПРАЙД (филиал)",
-//     },
-//     {
-//       id: "1373228951",
-//       type: "Дилер",
-//       DealerName: "Орехово-АвтоЦентр(Электросталь)",
-//     },
-//   ],
-// });
+app.use(cors()).use(bodyParser.json());
 
-// const requestOptions = {
-//   method: "POST",
-//   headers: myHeaders,
-//   body: raw,
-//   redirect: "follow",
-// };
+app.post("/api/dealer", async (req, res) => {
+  const query = req.body.query;
+  const paramsIn = req.body.params;
+  const templateName = paramsIn.template;
 
-// fetch(
-//   "http://localhost:5000/api/fill_template?file_name=21&type=custom",
-//   requestOptions
-// )
-//   .then((response) => response.text())
-//   .then((result) => console.log(result))
-//   .catch((error) => console.error(error));
+  const { sql, params } = formatQuery(query, {
+    format: "parameterized",
+    quoteFieldNamesWith: `"`,
+  });
+
+  let getDataResult;
+
+  try {
+    const selectRowData = `select * from public."Dealers" where ${sql} limit ${paramsIn.limit}`;
+
+    getDataResult = await sequelize.query(selectRowData, {
+      replacements: params,
+      type: "SELECT",
+    });
+  } catch (e) {
+    return res.status(422).json({ error: "Problems with SQL." });
+  }
+
+  if (getDataResult?.length === 0) {
+    return res.status(404).json({ error: "No data found." });
+  } else {
+    const path = `./templates/${templateName}.xlsx`;
+    const fillTemplateResult = await processData(
+      prepareData(getDataResult, query),
+      path
+    );
+
+    await fillTemplateResult
+      .workbook()
+      .toFileAsync(`./out/${templateName}_out.xlsx`);
+
+    // send file
+    const file = fs.createReadStream(`./out/${templateName}_out.xlsx`);
+    const filename = new Date().toISOString();
+    res.setHeader(
+      "Content-Disposition",
+      'attachment: filename="' + filename + '"'
+    );
+
+    file.pipe(res);
+  }
+});
+
+app.listen(PORT, () => console.log(`Listen on ${PORT}`));

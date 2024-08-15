@@ -1,34 +1,26 @@
 const XlsxPopulate = require("xlsx-populate");
 const XlsxDataFill = require("xlsx-datafill");
 const R = require("ramda");
+const moment = require("moment");
 
 const sequelize = require("./db/db.service");
 
 const XlsxPopulateAccess = XlsxDataFill.XlsxPopulateAccess;
 
-const bindParams = async () => {
-  const nameCondition = "like";
-  const nameValue = "Лада%";
-  const typeCondition = "=";
-  const typeValue = "Дилер";
-  const limit = 1;
-
-  return `
-  select 
-    id, type, "DealerName"
-  from 
-    public."Dealers"
-  where 
-    "DealerName" ${nameCondition} '${nameValue}' and
-    "type" ${typeCondition} '${typeValue}'
-    limit ${limit};
-  `;
+const processSQL = (sql) => {
+  let i = 0;
+  return sql.replace(/\?/g, () => {
+    i++;
+    return `$${i}`;
+  });
 };
 
-const getData = (sql) =>
-  sequelize.query(sql, {
+const getData = async (sql, replacements) => {
+  return await sequelize.query(sql, {
+    replacements,
     type: "SELECT",
   });
+};
 
 const processData = async (data, path) => {
   const wb = await XlsxPopulate.fromFileAsync(path);
@@ -39,25 +31,23 @@ const processData = async (data, path) => {
   return xlsxAccess;
 };
 
-const prepareData = (data) => {
-  console.log(data);
+const prepareData = (data, query) => {
+  const time = moment();
+  console.log("prepareData -->", data);
+  console.log("prepareData -->", query);
 
-  const filters = [
-    {
-      condition: `${"like"} ${"Лада%"}`,
-    },
-    {
-      condition: "condition2",
-    },
-    {
-      condition: "condition3",
-    },
-  ];
+  const search = query.rules.map((el) => ({
+    condition: `${el.field} ${el.operator} ${el.value}`,
+  }));
+
+  console.log("prepareData -->", search);
+  console.log("prepareData -->", time);
 
   return {
-    tableName: "Table name",
-    filters,
-    vertical: data,
+    search,
+    date: time.format("YYYY-MM-DD"),
+    time: time.format("HH:MM:SS"),
+    table: data,
   };
 };
 
@@ -70,7 +60,7 @@ const wrileToFile = (res) =>
   res.workbook().toFileAsync("./out/ruamds1_out.xlsx");
 
 module.exports = {
-  bindParams,
+  processSQL,
   getData,
   processData,
   prepareData,
